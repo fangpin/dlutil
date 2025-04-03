@@ -5,4 +5,3 @@ from util import (
     model_size,
     plot_weights_distribution,
 )
-
