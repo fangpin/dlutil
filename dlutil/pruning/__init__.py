@@ -1,0 +1,2 @@
+from channel_pruning import channel_prune_rank
+from fine_grained_pruning import FineGrainedPruner, plot_sensitivity_scan
