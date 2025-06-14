@@ -1,0 +1,4 @@
+.vscode
+.DS_Store
+dlutil/data/cifar-10-batches-py
+dlutil/data/cifar-10-python.tar.gz
