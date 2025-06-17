@@ -115,6 +115,7 @@ if __name__ == "__main__":
     from tqdm.auto import tqdm
     import numpy as np
     from torch.utils.tensorboard.writer import SummaryWriter
+    from torch.optim.lr_scheduler import OneCycleLR
 
     CHECK_POINT_PATH = "../saved_models"
     LOG_PATH = "../logs"
@@ -143,6 +144,8 @@ if __name__ == "__main__":
         [
             transforms.RandomHorizontalFlip(),
             transforms.RandomResizedCrop((32, 32), scale=(0.8, 1.0), ratio=(0.9, 1.1)),
+            transforms.RandomRotation(15),
+            transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
             transforms.ToTensor(),
             transforms.Normalize(
                 [0.49139968, 0.48215841, 0.44653091],
@@ -200,7 +203,7 @@ if __name__ == "__main__":
         dropout=0.2,
     )
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[100, 150], gamma=0.1
     )
@@ -213,7 +216,7 @@ if __name__ == "__main__":
         val_loader: DataLoader,
         test_loader: DataLoader,
         max_epoch: int,
-        load_model = False,
+        load_model=False,
     ):
         pretained_filename = os.path.join(CHECK_POINT_PATH, "ViT.ckpt")
         log_dir = os.path.join(LOG_PATH, "ViT")
@@ -241,7 +244,6 @@ if __name__ == "__main__":
                     writer.add_scalar("lr", cur_lr, global_step)
                     global_step += 1
                 scheduler.step()
-                print(f"train avg loss {all_loss.mean()} at epoch {epoch}")
 
                 model.eval()
                 num_sampels, num_correct = 0, 0
@@ -262,9 +264,10 @@ if __name__ == "__main__":
                             model.state_dict(),
                             os.path.join(CHECK_POINT_PATH, "ViT.ckpt"),
                         )
-                    print(f"val avg loss {all_loss.mean()} at epoch {epoch}")
-                    print(f"val correct rate {val_acc} at epoch {epoch}")
                     writer.add_scalar("val_acc", val_acc, epoch)
+                print(
+                    f"train avg loss {all_loss.mean()}, val avg loss {all_loss.mean()}, val correct rate {val_acc} at epoch {epoch}"
+                )
 
             model.eval()
             with torch.no_grad():
