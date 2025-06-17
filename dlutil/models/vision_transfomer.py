@@ -223,10 +223,10 @@ if __name__ == "__main__":
         else:
             best_acc = 0.0
             global_step = 0
-            for epoch in tqdm(range(max_epoch)):
+            for epoch in range(max_epoch):
                 model.train()
                 all_loss = np.zeros(len(train_loader))
-                for batch_idx, (inputs, targets) in enumerate(train_loader):
+                for batch_idx, (inputs, targets) in tqdm(enumerate(train_loader)):
                     optimizer.zero_grad()
                     inputs, targets = inputs.to(device), targets.to(device)
                     preds = model.forward(inputs)
@@ -250,8 +250,6 @@ if __name__ == "__main__":
                         inputs, targets = inputs.to(device), targets.to(device)
                         preds = model.forward(inputs)
                         loss = F.cross_entropy(preds, targets)
-                        loss.backward()
-                        optimizer.step()
                         all_loss[batch_idx] = loss.item()
                         num_sampels += targets.size(0)
                         num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
@@ -273,24 +271,26 @@ if __name__ == "__main__":
                     inputs, targets = inputs.to(device), targets.to(device)
                     preds = model.forward(inputs)
                     loss = F.cross_entropy(preds, targets)
-                    loss.backward()
-                    optimizer.step()
                     num_sampels += targets.size(0)
                     num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
                 print(f"final test correct rate {num_correct / num_sampels}")
 
+    model = VisionTransformer(
+        patch_size=4,
+        num_channel=3,
+        num_patches=64,
+        num_attention_layers=6,
+        embed_dim=256,
+        num_heads=8,
+        forward_dim=512,
+        num_class=10,
+        dropout=0.2,
+    )
+    model = model.to(device)
+    print(f"number of parameters: {util.num_params(model)}")
+
     train_model(
-        model=VisionTransformer(
-            patch_size=4,
-            num_channel=3,
-            num_patches=64,
-            num_attention_layers=6,
-            embed_dim=256,
-            num_heads=8,
-            forward_dim=512,
-            num_class=10,
-            dropout=0.2,
-        ),
+        model,
         scheduler=scheduler,
         train_loader=train_loader,
         val_loader=val_loader,

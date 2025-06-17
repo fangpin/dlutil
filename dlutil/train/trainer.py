@@ -16,7 +16,6 @@ class Trainer:
         train_loader: DataLoader,
         val_lader: Optional[DataLoader],
         test_loader: Optional[DataLoader],
-        best_checker="",
         device,
     ) -> None:
         self.model = model
