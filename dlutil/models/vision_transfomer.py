@@ -220,6 +220,7 @@ if __name__ == "__main__":
         pretained_filename = os.path.join(CHECK_POINT_PATH, "ViT.ckpt")
         log_dir = os.path.join(LOG_PATH, "ViT")
         os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(CHECK_POINT_PATH, exist_ok=True)
         writer = SummaryWriter(log_dir)
         if os.path.isfile(pretained_filename) and load_model:
             print(f"found pretrained model at {pretained_filename}, loading...")
@@ -239,25 +240,25 @@ if __name__ == "__main__":
                     loss.backward()
 
                     # Print gradients for key layers every 100 batches
-                    if global_step % 100 == 0:
-                        print(f"\n--- Epoch {epoch}, global_step {global_step} Gradients ---")
-                        for name, param in model.named_parameters():
-                            if param.grad is not None:
-                                # Print for selected layers
-                                print(f"  Layer: {name}")
-                                print(f"    Gradient Norm: {param.grad.norm().item()}")
-                                print(f"    Gradient Mean: {param.grad.mean().item()}")
-                                print(f"    Gradient Max:  {param.grad.max().item()}")
-                                print(f"    Gradient Min:  {param.grad.min().item()}")
-                                # Check for NaN or Inf
-                                if torch.isnan(param.grad).any():
-                                    print(f"    WARNING: NaN detected in gradients of {name}")
-                                if torch.isinf(param.grad).any():
-                                    print(f"    WARNING: Inf detected in gradients of {name}")
-                            else:
-                                # If grad is None for selected layers, also print it
-                                print(f"  Layer: {name}, Gradient: None")
-                        print(f"--- End Gradients ---\n")
+                    # if global_step % 100 == 0:
+                    #     print(f"\n--- Epoch {epoch}, global_step {global_step} Gradients ---")
+                    #     for name, param in model.named_parameters():
+                    #         if param.grad is not None:
+                    #             # Print for selected layers
+                    #             print(f"  Layer: {name}")
+                    #             print(f"    Gradient Norm: {param.grad.norm().item()}")
+                    #             print(f"    Gradient Mean: {param.grad.mean().item()}")
+                    #             print(f"    Gradient Max:  {param.grad.max().item()}")
+                    #             print(f"    Gradient Min:  {param.grad.min().item()}")
+                    #             # Check for NaN or Inf
+                    #             if torch.isnan(param.grad).any():
+                    #                 print(f"    WARNING: NaN detected in gradients of {name}")
+                    #             if torch.isinf(param.grad).any():
+                    #                 print(f"    WARNING: Inf detected in gradients of {name}")
+                    #         else:
+                    #             # If grad is None for selected layers, also print it
+                    #             print(f"  Layer: {name}, Gradient: None")
+                    #     print(f"--- End Gradients ---\n")
 
                     optimizer.step()
                     writer.add_scalar("train_loss", loss.item(), global_step)
