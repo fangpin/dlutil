@@ -2,3 +2,6 @@
 .DS_Store
 dlutil/data/cifar-10-batches-py
 dlutil/data/cifar-10-python.tar.gz
+dlutil/models/__pycache__
+dlutil/util/__pycache__
+notes/.ipynb_checkpoints

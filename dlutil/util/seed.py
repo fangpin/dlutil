@@ -4,7 +4,7 @@ import torch
 import pytorch_lightning as pl
 
 
-def set_seed(seed=42):
+def seed_everything(seed=42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

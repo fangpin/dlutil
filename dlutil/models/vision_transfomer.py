@@ -1,7 +1,8 @@
-from os import devnull
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import dlutil.util as util
 
 
 def img_to_patches(img: torch.Tensor, patch_size: int):
@@ -107,16 +108,19 @@ class VisionTransformer(nn.Module):
 
 
 if __name__ == "__main__":
-    import pytorch_lightning as pl
-    from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
     import os
     from torchvision import transforms
     from torchvision.datasets import CIFAR10
     import torch.utils.data as data
+    from tqdm.auto import tqdm
+    import numpy as np
+    from torch.utils.tensorboard.writer import SummaryWriter
 
     CHECK_POINT_PATH = "../saved_models"
+    LOG_PATH = "../logs"
     DATASET_PATH = "../data"
-    pl.seed_everything(42)
+    BATCH_SIZE = 128
+    util.seed_everything(42)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -154,9 +158,7 @@ if __name__ == "__main__":
     val_dataset = CIFAR10(
         root=DATASET_PATH, train=True, transform=test_transform, download=True
     )
-    pl.seed_everything(42)
     train_set, _ = torch.utils.data.random_split(train_dataset, [45000, 5000])
-    pl.seed_everything(42)
     _, val_set = torch.utils.data.random_split(val_dataset, [45000, 5000])
 
     # Loading the test set
@@ -167,7 +169,7 @@ if __name__ == "__main__":
     # We define a set of data loaders that we can use for various purposes later.
     train_loader = data.DataLoader(
         train_set,
-        batch_size=128,
+        batch_size=BATCH_SIZE,
         shuffle=True,
         drop_last=True,
         pin_memory=True,
@@ -176,94 +178,122 @@ if __name__ == "__main__":
     )
     val_loader = data.DataLoader(
         val_set,
-        batch_size=128,
+        batch_size=BATCH_SIZE,
         shuffle=False,
         drop_last=False,
         num_workers=4,
         persistent_workers=True,
     )
     test_loader = data.DataLoader(
-        test_set, batch_size=128, shuffle=False, drop_last=False, num_workers=4
+        test_set, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=4
     )
 
-    class ViT(pl.LightningModule):
-        def __init__(self, kwargs, lr: float):
-            super().__init__()
-            self.lr = lr
-            self.model = VisionTransformer(**kwargs)
-            # self.example_input_array = next(iter(train_loader))[0]
+    model = VisionTransformer(
+        embed_dim=256,
+        forward_dim=512,
+        num_heads=8,
+        num_attention_layers=6,
+        patch_size=4,
+        num_channel=3,
+        num_patches=64,
+        num_class=10,
+        dropout=0.2,
+    )
 
-        def forward(self, x) -> torch.Tensor:
-            return self.model.forward(x)
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[100, 150], gamma=0.1
+    )
 
-        def configure_optimizers(self):
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-            lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-                optimizer, milestones=[100, 150], gamma=0.1
-            )
-            return [optimizer], [lr_scheduler]
-
-        def _calculate_loss(self, batch, mode: str = "train"):
-            x, y = batch
-            preds = self.forward(x)
-            loss = F.cross_entropy(preds, y)
-            acc = (preds.argmax(dim=-1) == y).float().mean()
-            self.log(f"{mode}_loss", loss)
-            self.log(f"{mode}_acc", acc)
-            return loss
-
-        def training_step(self, batch, batch_idx):
-            return self._calculate_loss(batch, mode="train")
-
-        def validation_step(self, batch, batch_idx):
-            self._calculate_loss(batch, mode="val")
-
-        def test_step(self, batch, batch_idx):
-            self._calculate_loss(batch, mode="test")
-
-    def train_model(**kwargs):
-        trainer = pl.Trainer(
-            default_root_dir=os.path.join(CHECK_POINT_PATH, "ViT"),
-            accelerator="gpu" if str(device).startswith("cuda") else "cpu",
-            devices=1,
-            max_epochs=180,
-            callbacks=[
-                ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_acc"),
-                LearningRateMonitor("epoch"),
-            ],
-        )
-
+    def train_model(
+        model: torch.nn.Module,
+        scheduler: torch.optim.lr_scheduler.LRScheduler,
+        train_loader: DataLoader,
+        val_loader: DataLoader,
+        test_loader: DataLoader,
+        max_epoch: int,
+    ):
         pretained_filename = os.path.join(CHECK_POINT_PATH, "ViT.ckpt")
+        log_dir = os.path.join(LOG_PATH, "ViT")
+        os.makedirs(log_dir, exist_ok=True)
+        writer = SummaryWriter(log_dir)
         if os.path.isfile(pretained_filename):
             print(f"found pretrained model at {pretained_filename}, loading...")
-            model = ViT.load_from_checkpoint(pretained_filename)
+            model.load_state_dict(torch.load(pretained_filename))
         else:
-            pl.seed_everything(42)
-            model = ViT(**kwargs)
-            trainer.fit(model, train_loader, val_loader)
-            model = ViT.load_from_checkpoint(
-                trainer.checkpoint_callback.best_model_path
-            )
+            best_acc = 0.0
+            global_step = 0
+            for epoch in tqdm(range(max_epoch)):
+                model.train()
+                all_loss = np.zeros(len(train_loader))
+                for batch_idx, (inputs, targets) in enumerate(train_loader):
+                    optimizer.zero_grad()
+                    inputs, targets = inputs.to(device), targets.to(device)
+                    preds = model.forward(inputs)
+                    loss = F.cross_entropy(preds, targets)
+                    loss.backward()
+                    optimizer.step()
+                    all_loss[batch_idx] = loss.item()
+                    writer.add_scalar("train_loss", loss.item(), global_step)
+                    cur_lr = optimizer.param_groups[0]["lr"]
+                    writer.add_scalar("lr", cur_lr, global_step)
+                    global_step += 1
+                scheduler.step()
+                print(f"train avg loss {all_loss.mean()} at epoch {epoch}")
 
-        val_result = trainer.test(model, val_loader, verbose=False)
+                model.eval()
+                num_sampels, num_correct = 0, 0
+                val_acc = 0.0
+                with torch.no_grad():
+                    all_loss = np.zeros(len(val_loader))
+                    for batch_idx, (inputs, targets) in enumerate(val_loader):
+                        inputs, targets = inputs.to(device), targets.to(device)
+                        preds = model.forward(inputs)
+                        loss = F.cross_entropy(preds, targets)
+                        loss.backward()
+                        optimizer.step()
+                        all_loss[batch_idx] = loss.item()
+                        num_sampels += targets.size(0)
+                        num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
+                    val_acc = num_correct / num_sampels
+                    if val_acc > best_acc:
+                        best_acc = val_acc
+                        torch.save(
+                            model.state_dict(),
+                            os.path.join(CHECK_POINT_PATH, "ViT.ckpt"),
+                        )
+                    print(f"val avg loss {all_loss.mean()} at epoch {epoch}")
+                    print(f"val correct rate {val_acc} at epoch {epoch}")
+                    writer.add_scalar("val_acc", val_acc, epoch)
 
-        test_result = trainer.test(model, test_loader, verbose=False)
-        result = {"test": test_result[0]["test_acc"], "val": val_result[0]["test_acc"]}
+            model.eval()
+            with torch.no_grad():
+                num_sampels, num_correct = 0, 0
+                for batch_idx, (inputs, targets) in enumerate(test_loader):
+                    inputs, targets = inputs.to(device), targets.to(device)
+                    preds = model.forward(inputs)
+                    loss = F.cross_entropy(preds, targets)
+                    loss.backward()
+                    optimizer.step()
+                    num_sampels += targets.size(0)
+                    num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
+                print(f"final test correct rate {num_correct / num_sampels}")
 
-        return model, result
-
-    model, results = train_model(
-        kwargs={
-            "embed_dim": 256,
-            "forward_dim": 512,
-            "num_heads": 8,
-            "num_attention_layers": 6,
-            "patch_size": 4,
-            "num_channel": 3,
-            "num_patches": 64,
-            "num_class": 10,
-            "dropout": 0.2,
-        },
-        lr=3e-4,
+    train_model(
+        model=VisionTransformer(
+            patch_size=4,
+            num_channel=3,
+            num_patches=64,
+            num_attention_layers=6,
+            embed_dim=256,
+            num_heads=8,
+            forward_dim=512,
+            num_class=10,
+            dropout=0.2,
+        ),
+        scheduler=scheduler,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        max_epoch=180,
     )
-    print("ViT results", results)
