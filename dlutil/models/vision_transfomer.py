@@ -207,6 +207,7 @@ if __name__ == "__main__":
 
     def train_model(
         model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler.LRScheduler,
         train_loader: DataLoader,
         val_loader: DataLoader,
@@ -292,6 +293,7 @@ if __name__ == "__main__":
     train_model(
         model,
         scheduler=scheduler,
+        optimizer=optimizer,
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
