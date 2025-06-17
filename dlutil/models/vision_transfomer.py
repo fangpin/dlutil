@@ -115,7 +115,6 @@ if __name__ == "__main__":
     from tqdm.auto import tqdm
     import numpy as np
     from torch.utils.tensorboard.writer import SummaryWriter
-    from torch.optim.lr_scheduler import OneCycleLR
 
     CHECK_POINT_PATH = "../saved_models"
     LOG_PATH = "../logs"
@@ -238,6 +237,28 @@ if __name__ == "__main__":
                     train_loss[batch_idx] = loss.item()
                     optimizer.zero_grad()
                     loss.backward()
+
+                    # Print gradients for key layers every 100 batches
+                    if global_step % 100 == 0:
+                        print(f"\n--- Epoch {epoch}, global_step {global_step} Gradients ---")
+                        for name, param in model.named_parameters():
+                            if param.grad is not None:
+                                # Print for selected layers
+                                print(f"  Layer: {name}")
+                                print(f"    Gradient Norm: {param.grad.norm().item()}")
+                                print(f"    Gradient Mean: {param.grad.mean().item()}")
+                                print(f"    Gradient Max:  {param.grad.max().item()}")
+                                print(f"    Gradient Min:  {param.grad.min().item()}")
+                                # Check for NaN or Inf
+                                if torch.isnan(param.grad).any():
+                                    print(f"    WARNING: NaN detected in gradients of {name}")
+                                if torch.isinf(param.grad).any():
+                                    print(f"    WARNING: Inf detected in gradients of {name}")
+                            else:
+                                # If grad is None for selected layers, also print it
+                                print(f"  Layer: {name}, Gradient: None")
+                        print(f"--- End Gradients ---\n")
+
                     optimizer.step()
                     writer.add_scalar("train_loss", loss.item(), global_step)
                     cur_lr = optimizer.param_groups[0]["lr"]
@@ -274,7 +295,7 @@ if __name__ == "__main__":
                 num_sampels, num_correct = 0, 0
                 for batch_idx, (inputs, targets) in enumerate(test_loader):
                     inputs, targets = inputs.to(device), targets.to(device)
-                    preds = model.forward(inputs)
+                    preds = model(inputs)
                     loss = F.cross_entropy(preds, targets)
                     num_sampels += targets.size(0)
                     num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
