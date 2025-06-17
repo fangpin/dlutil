@@ -35,7 +35,7 @@ class AttentionBlock(nn.Module):
         self.norm1 = nn.LayerNorm(embed_dim)
         self.atten_layer = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout)
         self.norm2 = nn.LayerNorm(embed_dim)
-        self.liner = nn.Sequential(
+        self.linear = nn.Sequential(
             nn.Linear(embed_dim, forward_dim),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -46,7 +46,7 @@ class AttentionBlock(nn.Module):
     def forward(self, x):
         input_x = self.norm1(x)
         x = x + self.atten_layer(input_x, input_x, input_x)[0]
-        x = x + self.liner(self.norm2(x))
+        x = x + self.linear(self.norm2(x))
         return x
 
 
@@ -93,16 +93,16 @@ class VisionTransformer(nn.Module):
         batch, seq_num, input_dim = x.shape
         assert input_dim == self.input_dim
 
-        embeding = self.input_layer(x)
+        embedding = self.input_layer(x)
         cls_token = self.cls_token.repeat((batch, 1, 1))
-        embeding = torch.cat([cls_token, embeding], dim=1)
-        embeding = embeding + self.position_encoding[:, : seq_num + 1]
-        embeding = self.dropout(embeding)
-        embeding = embeding.permute(
+        embedding = torch.cat([cls_token, embedding], dim=1)
+        embedding = embedding + self.position_encoding[:, : seq_num + 1]
+        embedding = self.dropout(embedding)
+        embedding = embedding.permute(
             1, 0, 2
         )  # nn.MultiheadAttention use [seq, batch, feature] format
 
-        cls = self.transformer(embeding)[0]
+        cls = self.transformer(embedding)[0]
         out = self.mlp(cls)
         return out
 
@@ -213,12 +213,13 @@ if __name__ == "__main__":
         val_loader: DataLoader,
         test_loader: DataLoader,
         max_epoch: int,
+        load_model = False,
     ):
         pretained_filename = os.path.join(CHECK_POINT_PATH, "ViT.ckpt")
         log_dir = os.path.join(LOG_PATH, "ViT")
         os.makedirs(log_dir, exist_ok=True)
         writer = SummaryWriter(log_dir)
-        if os.path.isfile(pretained_filename):
+        if os.path.isfile(pretained_filename) and load_model:
             print(f"found pretrained model at {pretained_filename}, loading...")
             model.load_state_dict(torch.load(pretained_filename))
         else:
