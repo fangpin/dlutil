@@ -175,7 +175,7 @@ if __name__ == "__main__":
         shuffle=True,
         drop_last=True,
         pin_memory=True,
-        num_workers=4,
+        num_workers=2,
         persistent_workers=True,
     )
     val_loader = data.DataLoader(
@@ -183,11 +183,15 @@ if __name__ == "__main__":
         batch_size=BATCH_SIZE,
         shuffle=False,
         drop_last=False,
-        num_workers=4,
+        num_workers=2,
         persistent_workers=True,
     )
     test_loader = data.DataLoader(
-        test_set, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=4
+        test_set,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        drop_last=False,
+        num_workers=2,
     )
 
     model = VisionTransformer(
@@ -201,6 +205,7 @@ if __name__ == "__main__":
         num_class=10,
         dropout=0.2,
     )
+    model = model.to(device)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -238,28 +243,6 @@ if __name__ == "__main__":
                     train_loss[batch_idx] = loss.item()
                     optimizer.zero_grad()
                     loss.backward()
-
-                    # Print gradients for key layers every 100 batches
-                    # if global_step % 100 == 0:
-                    #     print(f"\n--- Epoch {epoch}, global_step {global_step} Gradients ---")
-                    #     for name, param in model.named_parameters():
-                    #         if param.grad is not None:
-                    #             # Print for selected layers
-                    #             print(f"  Layer: {name}")
-                    #             print(f"    Gradient Norm: {param.grad.norm().item()}")
-                    #             print(f"    Gradient Mean: {param.grad.mean().item()}")
-                    #             print(f"    Gradient Max:  {param.grad.max().item()}")
-                    #             print(f"    Gradient Min:  {param.grad.min().item()}")
-                    #             # Check for NaN or Inf
-                    #             if torch.isnan(param.grad).any():
-                    #                 print(f"    WARNING: NaN detected in gradients of {name}")
-                    #             if torch.isinf(param.grad).any():
-                    #                 print(f"    WARNING: Inf detected in gradients of {name}")
-                    #         else:
-                    #             # If grad is None for selected layers, also print it
-                    #             print(f"  Layer: {name}, Gradient: None")
-                    #     print(f"--- End Gradients ---\n")
-
                     optimizer.step()
                     writer.add_scalar("train_loss", loss.item(), global_step)
                     cur_lr = optimizer.param_groups[0]["lr"]
@@ -302,18 +285,6 @@ if __name__ == "__main__":
                     num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
                 print(f"final test correct rate {num_correct / num_sampels}")
 
-    model = VisionTransformer(
-        patch_size=4,
-        num_channel=3,
-        num_patches=64,
-        num_attention_layers=6,
-        embed_dim=256,
-        num_heads=8,
-        forward_dim=512,
-        num_class=10,
-        dropout=0.2,
-    )
-    model = model.to(device)
     print(f"number of parameters: {util.num_params(model)}")
 
     train_model(
