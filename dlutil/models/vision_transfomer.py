@@ -230,11 +230,13 @@ if __name__ == "__main__":
             global_step = 0
             for epoch in range(max_epoch):
                 model.train()
-                for _, (inputs, targets) in tqdm(enumerate(train_loader)):
+                train_loss = np.zeros(len(train_loader))
+                for batch_idx, (inputs, targets) in tqdm(enumerate(train_loader)):
                     optimizer.zero_grad()
                     inputs, targets = inputs.to(device), targets.to(device)
                     preds = model.forward(inputs)
                     loss = F.cross_entropy(preds, targets)
+                    train_loss[batch_idx] = loss.item()
                     loss.backward()
                     optimizer.step()
                     writer.add_scalar("train_loss", loss.item(), global_step)
@@ -246,11 +248,13 @@ if __name__ == "__main__":
                 model.eval()
                 num_sampels, num_correct = 0, 0
                 val_acc = 0.0
+                val_loss = np.zeros(len(val_loader))
                 with torch.no_grad():
-                    for _, (inputs, targets) in enumerate(val_loader):
+                    for batch_idx, (inputs, targets) in enumerate(val_loader):
                         inputs, targets = inputs.to(device), targets.to(device)
                         preds = model.forward(inputs)
-                        val_loss = F.cross_entropy(preds, targets)
+                        loss = F.cross_entropy(preds, targets)
+                        val_loss[batch_idx] = loss.item()
                         num_sampels += targets.size(0)
                         num_correct += (torch.argmax(preds, dim=-1) == targets).sum()
                     val_acc = num_correct / num_sampels
@@ -262,7 +266,7 @@ if __name__ == "__main__":
                         )
                     writer.add_scalar("val_acc", val_acc, epoch)
                 print(
-                    f"train avg loss {loss.item()}, val avg loss {val_loss.item()}, val correct rate {val_acc} at epoch {epoch}"
+                    f"train avg loss {train_loss.mean()}, val avg loss {val_loss.mean()}, val correct rate {val_acc} at epoch {epoch}"
                 )
 
             model.eval()
