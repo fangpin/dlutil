@@ -232,11 +232,11 @@ if __name__ == "__main__":
                 model.train()
                 train_loss = np.zeros(len(train_loader))
                 for batch_idx, (inputs, targets) in tqdm(enumerate(train_loader)):
-                    optimizer.zero_grad()
                     inputs, targets = inputs.to(device), targets.to(device)
-                    preds = model.forward(inputs)
+                    preds = model(inputs)
                     loss = F.cross_entropy(preds, targets)
                     train_loss[batch_idx] = loss.item()
+                    optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
                     writer.add_scalar("train_loss", loss.item(), global_step)
@@ -245,14 +245,14 @@ if __name__ == "__main__":
                     global_step += 1
                 scheduler.step()
 
-                model.eval()
                 num_sampels, num_correct = 0, 0
                 val_acc = 0.0
                 val_loss = np.zeros(len(val_loader))
+                model.eval()
                 with torch.no_grad():
                     for batch_idx, (inputs, targets) in enumerate(val_loader):
                         inputs, targets = inputs.to(device), targets.to(device)
-                        preds = model.forward(inputs)
+                        preds = model(inputs)
                         loss = F.cross_entropy(preds, targets)
                         val_loss[batch_idx] = loss.item()
                         num_sampels += targets.size(0)
