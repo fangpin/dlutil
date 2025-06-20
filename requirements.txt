@@ -1,6 +1,9 @@
 fast_pytorch_kmeans==0.2.2
+flax==0.10.6
+jax==0.6.1
 matplotlib==3.10.3
 numpy==2.3.0
+optax==0.2.5
 setuptools==76.0.0
 torch==2.6.0
 torchvision==0.21.0
