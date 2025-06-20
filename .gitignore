@@ -5,3 +5,4 @@ dlutil/data/cifar-10-python.tar.gz
 dlutil/models/__pycache__
 dlutil/util/__pycache__
 notes/.ipynb_checkpoints
+train_log/.ipynb_checkpoints
