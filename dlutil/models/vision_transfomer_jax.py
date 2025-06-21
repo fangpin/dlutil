@@ -212,7 +212,7 @@ class ViTTrainer:
 
     def train_epoch(self, epoch):
         metrics = defaultdict(list)
-        for batch in tqdm(train_loader, desc="training", leave=False):
+        for batch in tqdm(train_loader):
             self.state, self.rng, loss, acc = self.train_step(
                 self.state, self.rng, batch
             )
@@ -257,7 +257,6 @@ class ViTTrainer:
 
     def train_model(self, train_loader, val_loader, test_loader, num_epochs=180):
         self.init_optimizer(num_epochs, len(train_loader))
-        best_eval = 0.0
         for epoch_idx in tqdm(range(num_epochs)):
             loss, _ = self.train_epoch(epoch=epoch_idx)
             acc = self.eval_model(val_loader)
